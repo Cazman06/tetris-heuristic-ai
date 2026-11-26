@@ -30,9 +30,11 @@ class Session:
         self.seed = seed
         self.mode = "heuristic" if ai else "human"
         self.game = Game(seed)
-        self.random_agent = RandomAgent(seed)
-        self.heuristic_agent = HeuristicAgent()
-        self.height_agent = HeightAgent()
+        self.agents = {
+            "heuristic": HeuristicAgent(),
+            "height": HeightAgent(),
+            "random": RandomAgent(seed),
+        }
         self.decision: Placement | None = None
         self.lock_ms: int | None = None
         self.gravity_ms = 0
@@ -40,7 +42,7 @@ class Session:
 
     def restart(self) -> None:
         self.game.reset()
-        self.random_agent.reset()
+        self.agents["random"].reset()
         self.decision = None
         self.prepare()
 
@@ -77,8 +79,11 @@ class Session:
         if not self.game.current_fits():
             self.game.game_over = True
 
+    def _human_turn(self) -> bool:
+        return self.mode == "human" and not self.game.game_over
+
     def human_move(self, dc: int) -> bool:
-        if self.mode != "human" or self.game.game_over:
+        if not self._human_turn():
             return False
         moved = self.game.move(dc)
         if not moved:
@@ -87,7 +92,7 @@ class Session:
         return True
 
     def human_rotate(self) -> bool:
-        if self.mode != "human" or self.game.game_over:
+        if not self._human_turn():
             return False
         rotated = self.game.rotate()
         if not rotated:
@@ -97,18 +102,18 @@ class Session:
 
     def human_soft_drop(self) -> None:
         """One immediate soft-drop step from a key press."""
-        if self.mode != "human" or self.game.game_over:
+        if not self._human_turn():
             return
         self.gravity_ms = 0
         self._descend()
 
     def human_hard_drop(self) -> None:
-        if self.mode != "human" or self.game.game_over:
+        if not self._human_turn():
             return
         self._commit_lock()
 
     def tick_human(self, dt: int, soft: bool = False) -> None:
-        if self.mode != "human" or self.game.game_over:
+        if not self._human_turn():
             return
         if self.lock_ms is not None:
             self.lock_ms += dt
@@ -131,13 +136,7 @@ class Session:
         return result
 
     def _agent(self):
-        if self.mode == "heuristic":
-            return self.heuristic_agent
-        if self.mode == "height":
-            return self.height_agent
-        if self.mode == "random":
-            return self.random_agent
-        return None
+        return self.agents.get(self.mode)
 
     def _after_shift(self) -> None:
         if self.game.current_fits(row=self.game.row + 1):

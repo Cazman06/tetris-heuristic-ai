@@ -37,13 +37,15 @@ class GameResult:
 
 
 def make_agent(name: str, seed: int):
-    if name == "random":
-        return RandomAgent(seed)
-    if name == "height":
-        return HeightAgent()
-    if name == "heuristic":
-        return HeuristicAgent()
-    raise ValueError(name)
+    match name:
+        case "random":
+            return RandomAgent(seed)
+        case "height":
+            return HeightAgent()
+        case "heuristic":
+            return HeuristicAgent()
+        case _:
+            raise ValueError(name)
 
 
 def play_game(agent, seed: int, max_pieces: int = MAX_PIECES) -> GameResult:

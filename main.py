@@ -76,7 +76,17 @@ class App:
         self.bold = pygame.font.SysFont("segoeui", 22, bold=True)
         self.big = pygame.font.SysFont("segoeui", 36, bold=True)
         self.session = session
-        self.horiz: tuple[str, int] | None = None
+        self.mode_keys = {
+            pygame.K_a: "heuristic",
+            pygame.K_n: "random",
+            pygame.K_h: "height",
+            pygame.K_p: "human",
+        }
+        self.horizontal = {
+            pygame.K_LEFT: ("left", -1),
+            pygame.K_RIGHT: ("right", 1),
+        }
+        self.horiz: tuple[str, int, int] | None = None
         self.soft_held = False
         self.ai_ms = 0
         self.ai_hold = True
@@ -92,12 +102,13 @@ class App:
         while running:
             dt = self.clock.tick(60)
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.KEYDOWN:
-                    self._keydown(event.key)
-                elif event.type == pygame.KEYUP:
-                    self._keyup(event.key)
+                match event.type:
+                    case pygame.QUIT:
+                        running = False
+                    case pygame.KEYDOWN:
+                        self._keydown(event.key)
+                    case pygame.KEYUP:
+                        self._keyup(event.key)
             self._update(dt)
             self._draw()
             pygame.display.flip()
@@ -105,49 +116,43 @@ class App:
 
     def _keydown(self, key: int) -> None:
         pygame = self.pygame
+        if key in self.mode_keys:
+            self._set_mode(self.mode_keys[key])
+            return
+        match key:
+            case pygame.K_ESCAPE:
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
+            case pygame.K_r:
+                self._restart()
+            case pygame.K_LEFT | pygame.K_RIGHT | pygame.K_UP | pygame.K_DOWN | pygame.K_SPACE:
+                self._human_control(key)
+
+    def _human_control(self, key: int) -> None:
         session = self.session
-        if key == pygame.K_ESCAPE:
-            pygame.event.post(pygame.event.Event(pygame.QUIT))
-            return
-        if key == pygame.K_r:
-            self._restart()
-            return
-        if key == pygame.K_a:
-            self._set_mode("heuristic")
-            return
-        if key == pygame.K_n:
-            self._set_mode("random")
-            return
-        if key == pygame.K_h:
-            self._set_mode("height")
-            return
-        if key == pygame.K_p:
-            self._set_mode("human")
-            return
         if session.mode != "human" or session.game.game_over:
             return
-        if key == pygame.K_LEFT:
-            session.human_move(-1)
-            self.horiz = ("left", 0)
-        elif key == pygame.K_RIGHT:
-            session.human_move(1)
-            self.horiz = ("right", 0)
-        elif key == pygame.K_UP:
-            session.human_rotate()
-        elif key == pygame.K_DOWN:
-            self.soft_held = True
-            session.human_soft_drop()
-        elif key == pygame.K_SPACE:
-            session.human_hard_drop()
+        pygame = self.pygame
+        match key:
+            case pygame.K_LEFT | pygame.K_RIGHT:
+                direction, step = self.horizontal[key]
+                session.human_move(step)
+                self.horiz = (direction, step, 0)
+            case pygame.K_UP:
+                session.human_rotate()
+            case pygame.K_DOWN:
+                self.soft_held = True
+                session.human_soft_drop()
+            case pygame.K_SPACE:
+                session.human_hard_drop()
 
     def _keyup(self, key: int) -> None:
-        pygame = self.pygame
-        if key in (pygame.K_LEFT, pygame.K_RIGHT) and self.horiz is not None:
-            direction = "left" if key == pygame.K_LEFT else "right"
-            if self.horiz[0] == direction:
-                self.horiz = None
-        elif key == pygame.K_DOWN:
-            self.soft_held = False
+        match key:
+            case self.pygame.K_LEFT | self.pygame.K_RIGHT:
+                direction, _step = self.horizontal[key]
+                if self.horiz is not None and self.horiz[0] == direction:
+                    self.horiz = None
+            case self.pygame.K_DOWN:
+                self.soft_held = False
 
     def _set_mode(self, mode: str) -> None:
         if mode == self.session.mode:
@@ -179,13 +184,12 @@ class App:
     def _update_horizontal(self, dt: int) -> None:
         if self.horiz is None:
             return
-        direction, held = self.horiz
+        direction, step, held = self.horiz
         held += dt
-        step = -1 if direction == "left" else 1
         while held >= DAS_DELAY:
             self.session.human_move(step)
             held -= DAS_REPEAT
-        self.horiz = (direction, held)
+        self.horiz = (direction, step, held)
 
     def _update_ai(self, dt: int) -> None:
         self.ai_ms += dt
@@ -196,12 +200,14 @@ class App:
             self.ai_hold = False
             return
         for _ in range(AI_ROWS_PER_TICK):
-            result = self.session.ai_fall_once()
-            if result == "lock":
-                self.ai_hold = True
-                break
-            if result != "fall":
-                break
+            match self.session.ai_fall_once():
+                case "fall":
+                    continue
+                case "lock":
+                    self.ai_hold = True
+                    break
+                case _:
+                    break
 
     def _draw(self) -> None:
         pygame = self.pygame
@@ -298,45 +304,45 @@ class App:
         stat("Piece", PIECE_NAMES[game.piece_id], PIECE_COLORS[game.piece_id])
         y += 6
 
-        decision = session.decision
-        if session.mode == "heuristic" and decision is not None:
-            line("Decision", self.small, MUTED, 2)
-            line(f"rot {decision.rotation}    col {decision.col}", self.font, TEXT, 1)
-            line(f"{decision.candidates} legal drops", self.small, MUTED, 3)
-            line(
-                f"L {decision.lines}   A {decision.aggregate_height}   "
-                f"holes {decision.holes}   B {decision.bumpiness}",
-                self.small,
-                TEXT,
-                2,
-            )
-            line(f"H  {decision.heuristic:.2f}", self.font, ACCENT, 1)
-            line(
-                f"1.0*{decision.lines} - 0.5*{decision.aggregate_height} "
-                f"- 0.7*{decision.holes} - 0.3*{decision.bumpiness}",
-                self.small,
-                MUTED,
-                8,
-            )
-        elif session.mode == "height" and decision is not None:
-            line("Decision", self.small, MUTED, 2)
-            line(f"rot {decision.rotation}    col {decision.col}", self.font, TEXT, 1)
-            line(f"minimize A = {decision.aggregate_height}", self.small, TEXT, 1)
-            line(f"{decision.candidates} legal drops", self.small, MUTED, 8)
-        elif session.mode == "random" and decision is not None:
-            line("Decision", self.small, MUTED, 2)
-            line(f"rot {decision.rotation}    col {decision.col}", self.font, TEXT, 1)
-            line("uniform among legal drops", self.small, TEXT, 1)
-            line(f"{decision.candidates} legal drops", self.small, MUTED, 8)
-        elif session.mode == "human":
-            line("You choose each move.", self.small, TEXT, 8)
-        elif game.game_over:
-            line("No legal drop.", self.small, GAME_OVER_COLOR, 8)
+        self._draw_decision(line, session.decision)
 
-        if y < control_top - 36:
-            line("H(s) = 1.0*L - 0.5*A", self.small, MUTED, 1)
-            line("     - 0.7*holes - 0.3*B", self.small, MUTED, 1)
-            line("One ply. Current piece only.", self.small, MUTED, 2)
+    def _draw_pose(self, line, decision) -> None:
+        line("Decision", self.small, MUTED, 2)
+        line(f"rot {decision.rotation}    col {decision.col}", self.font, TEXT, 1)
+
+    def _draw_decision(self, line, decision) -> None:
+        """What the side panel says about the current choice."""
+        match self.session.mode:
+            case "heuristic" if decision is not None:
+                self._draw_pose(line, decision)
+                line(f"{decision.candidates} legal drops", self.small, MUTED, 3)
+                line(
+                    f"L {decision.lines}   A {decision.aggregate_height}   "
+                    f"holes {decision.holes}   B {decision.bumpiness}",
+                    self.small,
+                    TEXT,
+                    2,
+                )
+                line(f"H  {decision.heuristic:.2f}", self.font, ACCENT, 1)
+                line(
+                    f"1.0*{decision.lines} - 0.5*{decision.aggregate_height} "
+                    f"- 0.7*{decision.holes} - 0.3*{decision.bumpiness}",
+                    self.small,
+                    MUTED,
+                    8,
+                )
+            case "height" if decision is not None:
+                self._draw_pose(line, decision)
+                line(f"minimize A = {decision.aggregate_height}", self.small, TEXT, 1)
+                line(f"{decision.candidates} legal drops", self.small, MUTED, 8)
+            case "random" if decision is not None:
+                self._draw_pose(line, decision)
+                line("uniform among legal drops", self.small, TEXT, 1)
+                line(f"{decision.candidates} legal drops", self.small, MUTED, 8)
+            case "human":
+                line("You choose each move.", self.small, TEXT, 8)
+            case _ if self.session.game.game_over:
+                line("No legal drop.", self.small, GAME_OVER_COLOR, 8)
 
     def _draw_game_over(self) -> None:
         pygame = self.pygame
