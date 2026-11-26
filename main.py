@@ -4,7 +4,7 @@
     python main.py --ai --seed 4   # watch the heuristic
 
 Arrows move, Up rotates, Down soft-drops, Space hard-drops.
-A, N, H, and P switch among the heuristic, random, height-only, and human.
+A and P switch between the heuristic and human modes.
 R restarts the same piece seed.
 """
 
@@ -78,8 +78,6 @@ class App:
         self.session = session
         self.mode_keys = {
             pygame.K_a: "heuristic",
-            pygame.K_n: "random",
-            pygame.K_h: "height",
             pygame.K_p: "human",
         }
         self.horizontal = {
@@ -263,20 +261,7 @@ class App:
         x = panel.x + 16
         right = panel.right - 16
 
-        controls = (
-            "Arrows   move",
-            "Up       rotate",
-            "Down     soft drop",
-            "Space    hard drop",
-            "A N H P  agents",
-            "R        restart",
-        )
-        control_top = panel.bottom - 14
-        for text in reversed(controls):
-            image = self.small.render(text, True, MUTED)
-            control_top -= image.get_height()
-            screen.blit(image, (x, control_top))
-            control_top -= 2
+        control_top = self._draw_controls(screen, x, panel.bottom - 14)
         control_top -= 8
         pygame.draw.line(screen, GRID, (x, control_top + 4), (right, control_top + 4))
 
@@ -306,6 +291,42 @@ class App:
 
         self._draw_decision(line, session.decision)
 
+    def _draw_controls(self, screen, x: int, bottom: int) -> int:
+        """Draw the key list. Keys share one column; actions start on the next."""
+        play = (
+            ("Arrows", "move"),
+            ("Up", "rotate"),
+            ("Down", "soft drop"),
+            ("Space", "hard drop"),
+            ("R", "restart"),
+        )
+        modes = (
+            ("A", "heuristic"),
+            ("P", "human"),
+        )
+        keys = [key for key, _action in (*play, *modes)]
+        action_x = x + max(self.small.size(key)[0] for key in keys) + 20
+        y = bottom
+
+        def row(key: str, action: str) -> None:
+            nonlocal y
+            key_image = self.small.render(key, True, MUTED)
+            action_image = self.small.render(action, True, TEXT)
+            y -= max(key_image.get_height(), action_image.get_height())
+            screen.blit(key_image, (action_x - 20 - key_image.get_width(), y))
+            screen.blit(action_image, (action_x, y))
+            y -= 3
+
+        for key, action in reversed(modes):
+            row(key, action)
+        heading = self.small.render("Modes", True, MUTED)
+        y -= heading.get_height()
+        screen.blit(heading, (x, y))
+        y -= 8
+        for key, action in reversed(play):
+            row(key, action)
+        return y
+
     def _draw_pose(self, line, decision) -> None:
         line("Decision", self.small, MUTED, 2)
         line(f"rot {decision.rotation}    col {decision.col}", self.font, TEXT, 1)
@@ -331,14 +352,6 @@ class App:
                     MUTED,
                     8,
                 )
-            case "height" if decision is not None:
-                self._draw_pose(line, decision)
-                line(f"minimize A = {decision.aggregate_height}", self.small, TEXT, 1)
-                line(f"{decision.candidates} legal drops", self.small, MUTED, 8)
-            case "random" if decision is not None:
-                self._draw_pose(line, decision)
-                line("uniform among legal drops", self.small, TEXT, 1)
-                line(f"{decision.candidates} legal drops", self.small, MUTED, 8)
             case "human":
                 line("You choose each move.", self.small, TEXT, 8)
             case _ if self.session.game.game_over:

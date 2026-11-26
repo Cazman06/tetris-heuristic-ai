@@ -6,17 +6,15 @@ are different: the center columns can be blocked while a side drop still fits.
 
 from __future__ import annotations
 
-from ai.agents import HeightAgent, HeuristicAgent, Placement, RandomAgent
+from ai.agents import HeuristicAgent, Placement
 from game.board import Board
 from game.engine import Game
 
-MODES = ("human", "heuristic", "random", "height")
+MODES = ("human", "heuristic")
 
 MODE_LABELS = {
     "human": "Human",
     "heuristic": "Heuristic",
-    "random": "Random",
-    "height": "Height-only",
 }
 
 # How the window feels. The benchmark does not use these clocks.
@@ -30,11 +28,7 @@ class Session:
         self.seed = seed
         self.mode = "heuristic" if ai else "human"
         self.game = Game(seed)
-        self.agents = {
-            "heuristic": HeuristicAgent(),
-            "height": HeightAgent(),
-            "random": RandomAgent(seed),
-        }
+        self.heuristic = HeuristicAgent()
         self.decision: Placement | None = None
         self.lock_ms: int | None = None
         self.gravity_ms = 0
@@ -42,7 +36,6 @@ class Session:
 
     def restart(self) -> None:
         self.game.reset()
-        self.agents["random"].reset()
         self.decision = None
         self.prepare()
 
@@ -136,7 +129,9 @@ class Session:
         return result
 
     def _agent(self):
-        return self.agents.get(self.mode)
+        if self.mode == "heuristic":
+            return self.heuristic
+        return None
 
     def _after_shift(self) -> None:
         if self.game.current_fits(row=self.game.row + 1):

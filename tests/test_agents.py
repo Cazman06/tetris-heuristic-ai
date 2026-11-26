@@ -215,9 +215,8 @@ def test_human_lock_delay_and_ai_immediate_lock():
     assert agent.decision is not None
 
 
-def test_restart_replays_the_random_agent():
-    session = Session(3, ai=False)
-    session.set_mode("random")
+def test_restart_replays_the_heuristic():
+    session = Session(3, ai=True)
     for _ in range(50):
         session.ai_fall_once()
     snapshot = (
@@ -230,7 +229,7 @@ def test_restart_replays_the_random_agent():
         session.game.rotation,
     )
     session.restart()
-    assert session.mode == "random"
+    assert session.mode == "heuristic"
     for _ in range(50):
         session.ai_fall_once()
     assert snapshot == (

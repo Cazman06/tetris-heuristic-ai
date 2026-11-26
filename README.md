@@ -32,16 +32,14 @@ The window is a grid and a side panel. There is no next-piece box, hold, sound, 
 | Up | Rotate clockwise |
 | Down | Soft drop |
 | Space | Hard drop |
-| A | Heuristic agent |
-| N | Random agent |
-| H | Height-only agent |
-| P | Human |
+| A | Heuristic mode |
+| P | Human mode |
 | R | Restart the same piece seed |
 | Esc | Quit |
 
-Human pieces lock about half a second after they land, so you can still slide. Agents hard-drop. A human dies when the spawn pose overlaps the stack. An agent dies when the current piece has no legal drop, which can still be true after the center columns are blocked.
+The panel calls these modes. Human pieces lock about half a second after they land, so you can still slide. The heuristic hard-drops. A human dies when the spawn pose overlaps the stack. The heuristic dies when the current piece has no legal drop, which can still be true after the center columns are blocked.
 
-While an agent plays, the panel shows the chosen rotation and column, how many legal drops were scored, and the features of the board that drop leaves behind.
+While the heuristic plays, the panel shows the chosen rotation and column, how many legal drops were scored, and the features of the board that drop leaves behind.
 
 ## Decision
 
