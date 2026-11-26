@@ -1,4 +1,4 @@
-"""Locked-board operations. Row 0 is the top. 0 is empty."""
+"""The board in this sense is only blocks that have already landed and been locked in place. Row 0 is the top and row 19 is the bottom. 0 is empty."""
 
 from __future__ import annotations
 

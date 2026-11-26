@@ -295,7 +295,6 @@ class App:
         stat("Score", f"{game.score:,}")
         stat("Lines", f"{game.lines:,}")
         stat("Pieces", f"{game.pieces:,}")
-        stat("Seed", str(session.seed))
         stat("Piece", PIECE_NAMES[game.piece_id], PIECE_COLORS[game.piece_id])
         y += 6
 

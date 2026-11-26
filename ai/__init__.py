@@ -1,1 +1,1 @@
-"""One-ply search over simulated hard drops. The live game is not imported here as a window."""
+"""One-ply search over simulated hard drops so it only looks one step ahead."""
