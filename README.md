@@ -4,6 +4,8 @@ A playable Tetris game with a one-step heuristic on top of it. The game and the 
 
 The board is 20 rows by 10 columns. Row 0 is the top. `0` is empty, and `1`–`7` are the seven tetrominoes (I, O, T, S, Z, J, L). A move is a rotation and a leftmost column. The piece hard-drops from the top of that column. There are no wall kicks.
 
+How the modules fit together is written up in [docs/](docs/README.md).
+
 Simulation copies the board, drops, locks, clears lines, and returns the new board plus the number of lines cleared. The live game is unchanged until that move is played.
 
 ## Run it locally
@@ -99,6 +101,7 @@ The score table pays extra for a four-line clear (800) that `H` counts as four o
 | `game/` | Rules only. No Pygame and no agent imports. |
 | `ai/` | Simulated drops, legal moves, features, and the three agents. |
 | `session.py` | Live play: human lock delay, and agents applied to the current piece. |
-| `main.py` | The window. |
+| `main.py` | Starts a session and the window. |
+| `view/` | The window: layout, input, drawing, and the frame loop. |
 | `evaluation/benchmark.py` | Headless paired measurement. |
 | `tests/` | Rules, the search, and agreement between the engine and the benchmark. |
