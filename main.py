@@ -53,6 +53,9 @@ PIECE_COLORS = {
     7: (240, 148, 48),
 }
 
+# False while the window is at the layout size. True while Windows has it maximized.
+fullscreen = False
+
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Play Tetris, or watch a one-ply heuristic.")
@@ -69,7 +72,11 @@ class App:
         self.pygame = pygame
         pygame.display.init()
         pygame.font.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.fullscreen = fullscreen
+        self.minimized = False
+        self.window = pygame.Window("Tetris", (WIDTH, HEIGHT), resizable=True)
+        self.screen = self.window.get_surface()
+        self.canvas = pygame.Surface((WIDTH, HEIGHT)).convert()
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("segoeui", 18)
         self.small = pygame.font.SysFont("segoeui", 16)
@@ -92,25 +99,55 @@ class App:
 
     def _caption(self) -> None:
         label = MODE_LABELS[self.session.mode]
-        self.pygame.display.set_caption(f"Tetris - {label}")
+        self.window.title = f"Tetris - {label}"
 
     def run(self) -> None:
-        pygame = self.pygame
         running = True
         while running:
             dt = self.clock.tick(60)
-            for event in pygame.event.get():
-                match event.type:
-                    case pygame.QUIT:
-                        running = False
-                    case pygame.KEYDOWN:
-                        self._keydown(event.key)
-                    case pygame.KEYUP:
-                        self._keyup(event.key)
+            running = self._poll()
+            if self.minimized:
+                continue
             self._update(dt)
             self._draw()
-            pygame.display.flip()
-        pygame.quit()
+            self.window.flip()
+        self.pygame.quit()
+
+    def _poll(self) -> bool:
+        """Read one batch of events. Windows owns maximize, minimize, and restore."""
+        pygame = self.pygame
+        running = True
+        minimized = False
+        restored = False
+        maximized = False
+        for event in pygame.event.get():
+            match event.type:
+                case pygame.QUIT:
+                    running = False
+                case pygame.WINDOWMINIMIZED:
+                    minimized = True
+                case pygame.WINDOWRESTORED:
+                    restored = True
+                case pygame.WINDOWMAXIMIZED:
+                    maximized = True
+                case pygame.KEYDOWN:
+                    self._keydown(event.key)
+                case pygame.KEYUP:
+                    self._keyup(event.key)
+        if minimized and not restored and not maximized:
+            self.minimized = True
+        elif maximized:
+            self.minimized = False
+            self._set_fullscreen_flag(True)
+        elif restored:
+            self.minimized = False
+            self._set_fullscreen_flag(False)
+        return running
+
+    def _set_fullscreen_flag(self, value: bool) -> None:
+        global fullscreen
+        fullscreen = value
+        self.fullscreen = value
 
     def _keydown(self, key: int) -> None:
         pygame = self.pygame
@@ -208,17 +245,31 @@ class App:
                     break
 
     def _draw(self) -> None:
-        pygame = self.pygame
-        screen = self.screen
-        screen.fill(BG)
+        self.canvas.fill(BG)
         self._draw_well()
         self._draw_panel()
         if self.session.game.game_over:
             self._draw_game_over()
+        self._present()
+
+    def _present(self) -> None:
+        """Blit the layout onto the window. A larger monitor scales it to fit."""
+        screen = self.window.get_surface()
+        self.screen = screen
+        sw, sh = screen.get_size()
+        if sw == WIDTH and sh == HEIGHT:
+            screen.blit(self.canvas, (0, 0))
+            return
+        scale = min(sw / WIDTH, sh / HEIGHT)
+        dw = max(1, round(WIDTH * scale))
+        dh = max(1, round(HEIGHT * scale))
+        scaled = self.pygame.transform.smoothscale(self.canvas, (dw, dh))
+        screen.fill(BG)
+        screen.blit(scaled, ((sw - dw) // 2, (sh - dh) // 2))
 
     def _draw_well(self) -> None:
         pygame = self.pygame
-        screen = self.screen
+        screen = self.canvas
         game = self.session.game
         board_rect = pygame.Rect(BOARD_X, BOARD_Y, COLS * CELL, ROWS * CELL)
         pygame.draw.rect(screen, WELL, board_rect)
@@ -247,13 +298,13 @@ class App:
         pygame = self.pygame
         rect = pygame.Rect(BOARD_X + col * CELL + 2, BOARD_Y + row * CELL + 2, CELL - 4, CELL - 4)
         if filled:
-            pygame.draw.rect(self.screen, color, rect, border_radius=4)
+            pygame.draw.rect(self.canvas, color, rect, border_radius=4)
         else:
-            pygame.draw.rect(self.screen, color, rect, 2, border_radius=4)
+            pygame.draw.rect(self.canvas, color, rect, 2, border_radius=4)
 
     def _draw_panel(self) -> None:
         pygame = self.pygame
-        screen = self.screen
+        screen = self.canvas
         session = self.session
         game = session.game
         panel = pygame.Rect(PANEL_X, BOARD_Y, PANEL_W - 8, ROWS * CELL)
@@ -361,14 +412,14 @@ class App:
         pygame = self.pygame
         overlay = pygame.Surface((COLS * CELL, ROWS * CELL), pygame.SRCALPHA)
         overlay.fill((8, 10, 20, 170))
-        self.screen.blit(overlay, (BOARD_X, BOARD_Y))
+        self.canvas.blit(overlay, (BOARD_X, BOARD_Y))
         title = self.big.render("GAME OVER", True, GAME_OVER_COLOR)
         hint = self.font.render("R  restart", True, TEXT)
         center_x = BOARD_X + COLS * CELL // 2
         title_rect = title.get_rect(center=(center_x, BOARD_Y + ROWS * CELL // 2 - 16))
         hint_rect = hint.get_rect(center=(center_x, BOARD_Y + ROWS * CELL // 2 + 24))
-        self.screen.blit(title, title_rect)
-        self.screen.blit(hint, hint_rect)
+        self.canvas.blit(title, title_rect)
+        self.canvas.blit(hint, hint_rect)
 
 
 def main(argv: list[str] | None = None) -> int:
